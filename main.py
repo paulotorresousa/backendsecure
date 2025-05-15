@@ -1,5 +1,5 @@
 from fastapi import FastAPI, Request, HTTPException, status
-from fastapi.responses import StreamingResponse, JSONResponse, Response
+from fastapi.responses import StreamingResponse, Response
 from firebase_admin import auth
 from mfa import generate_totp_qr, verify_totp
 from firestore import get_totp_secret, set_totp_secret
@@ -7,24 +7,25 @@ from firebase_app import firebase_app  # inicializa Firebase Admin
 
 app = FastAPI()
 
-# Middleware manual para adicionar headers CORS e tratar OPTIONS
 @app.middleware("http")
 async def add_cors_headers(request: Request, call_next):
+    print(f"[CORS Middleware] Método: {request.method} | Origin: {request.headers.get('origin')}")
     if request.method == "OPTIONS":
-        # Responde direto para preflight
         headers = {
-            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Origin": request.headers.get("origin", "*"),
             "Access-Control-Allow-Methods": "GET,POST,PUT,DELETE,OPTIONS",
-            "Access-Control-Allow-Headers": "*",
+            "Access-Control-Allow-Headers": request.headers.get("access-control-request-headers", "*"),
             "Access-Control-Allow-Credentials": "true",
         }
+        print("[CORS Middleware] Respondendo OPTIONS com headers:", headers)
         return Response(status_code=200, headers=headers)
 
     response = await call_next(request)
-    response.headers["Access-Control-Allow-Origin"] = "*"
-    response.headers["Access-Control-Allow-Methods"] = "GET,POST,PUT,DELETE,OPTIONS"
-    response.headers["Access-Control-Allow-Headers"] = "*"
-    response.headers["Access-Control-Allow-Credentials"] = "true"
+    response.headers.setdefault("Access-Control-Allow-Origin", request.headers.get("origin", "*"))
+    response.headers.setdefault("Access-Control-Allow-Methods", "GET,POST,PUT,DELETE,OPTIONS")
+    response.headers.setdefault("Access-Control-Allow-Headers", request.headers.get("access-control-request-headers", "*"))
+    response.headers.setdefault("Access-Control-Allow-Credentials", "true")
+    print(f"[CORS Middleware] Adicionando headers CORS na resposta para método {request.method}")
     return response
 
 def get_user_id_from_token(request: Request) -> str:
@@ -35,7 +36,8 @@ def get_user_id_from_token(request: Request) -> str:
     try:
         decoded_token = auth.verify_id_token(id_token)
         return decoded_token["uid"]
-    except Exception:
+    except Exception as e:
+        print(f"[Auth] Erro ao verificar token: {e}")
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token inválido ou expirado")
 
 @app.get("/")
@@ -64,3 +66,4 @@ def verify_totp_route(request: Request, code: str = ""):
     if not verify_totp(secret, code):
         raise HTTPException(status_code=401, detail="Código inválido")
     return {"msg": "MFA verificado com sucesso"}
+
