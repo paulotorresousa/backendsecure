@@ -1,12 +1,14 @@
+import json
+import os
 import firebase_admin
-from firebase_admin import credentials, auth
+from firebase_admin import credentials
 
-cred = credentials.Certificate("serviceAccountKey.json")
+# Pega o JSON direto da variável de ambiente
+firebase_json = os.environ.get("GOOGLE_APPLICATION_CREDENTIALS_JSON")
+
+# Converte a string para dicionário
+cred = credentials.Certificate(json.loads(firebase_json))
+
+# Inicializa o Firebase Admin
 firebase_admin.initialize_app(cred)
 
-def verify_token(id_token: str):
-    try:
-        decoded_token = auth.verify_id_token(id_token)
-        return decoded_token
-    except Exception as e:
-        return None
