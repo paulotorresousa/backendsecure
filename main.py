@@ -11,10 +11,14 @@ app = FastAPI()
 # Middleware CORS liberando todas as origens (sem allow_credentials)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # libera todo mundo, só pra teste
+    allow_origins=[
+        "http://localhost:5500",
+        "http://127.0.0.1:5500",
+        "https://seusite.com"
+    ],
+    allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
-    # allow_credentials=True,  # comentado para evitar conflito
 )
 
 def get_user_id_from_token(request: Request) -> str:
