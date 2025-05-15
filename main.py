@@ -4,7 +4,7 @@ from fastapi.responses import StreamingResponse
 from firebase_admin import auth
 from mfa import generate_totp_qr, verify_totp
 from firestore import get_totp_secret, set_totp_secret
-from firebase_app import firebase_app  # inicialização do Firebase Admin
+import firebase_app  # inicialização do Firebase Admin
 from utils import get_user_id_from_token  # você já deve ter criado essa função
 
 app = FastAPI()
