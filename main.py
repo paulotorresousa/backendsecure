@@ -1,6 +1,5 @@
 from fastapi import FastAPI, Request, HTTPException, status
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import StreamingResponse, JSONResponse
+from fastapi.responses import StreamingResponse, JSONResponse, Response
 from firebase_admin import auth
 from mfa import generate_totp_qr, verify_totp
 from firestore import get_totp_secret, set_totp_secret
@@ -8,24 +7,25 @@ from firebase_app import firebase_app  # inicializa Firebase Admin
 
 app = FastAPI()
 
-# Middleware CORS liberando tudo (ideal para dev)
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],  # restrinja para seu domínio em produção
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+# Middleware manual para adicionar headers CORS e tratar OPTIONS
+@app.middleware("http")
+async def add_cors_headers(request: Request, call_next):
+    if request.method == "OPTIONS":
+        # Responde direto para preflight
+        headers = {
+            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Methods": "GET,POST,PUT,DELETE,OPTIONS",
+            "Access-Control-Allow-Headers": "*",
+            "Access-Control-Allow-Credentials": "true",
+        }
+        return Response(status_code=200, headers=headers)
 
-# Tratamento explícito para requisições OPTIONS (preflight)
-@app.options("/{rest_of_path:path}")
-async def preflight_handler(rest_of_path: str):
-    return JSONResponse(status_code=200, headers={
-        "Access-Control-Allow-Origin": "*",
-        "Access-Control-Allow-Methods": "GET,POST,PUT,DELETE,OPTIONS",
-        "Access-Control-Allow-Headers": "*",
-        "Access-Control-Allow-Credentials": "true"
-    })
+    response = await call_next(request)
+    response.headers["Access-Control-Allow-Origin"] = "*"
+    response.headers["Access-Control-Allow-Methods"] = "GET,POST,PUT,DELETE,OPTIONS"
+    response.headers["Access-Control-Allow-Headers"] = "*"
+    response.headers["Access-Control-Allow-Credentials"] = "true"
+    return response
 
 def get_user_id_from_token(request: Request) -> str:
     auth_header = request.headers.get("Authorization")
@@ -64,4 +64,3 @@ def verify_totp_route(request: Request, code: str = ""):
     if not verify_totp(secret, code):
         raise HTTPException(status_code=401, detail="Código inválido")
     return {"msg": "MFA verificado com sucesso"}
-
