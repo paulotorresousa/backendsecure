@@ -1,22 +1,42 @@
-from fastapi import FastAPI, Depends, HTTPException, status, Request
+from fastapi import FastAPI, Request, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import StreamingResponse
+from fastapi.responses import StreamingResponse, JSONResponse
 from firebase_admin import auth
 from mfa import generate_totp_qr, verify_totp
 from firestore import get_totp_secret, set_totp_secret
-from firebase_app import firebase_app
-from utils import get_user_id_from_token  # você já deve ter criado essa função
+from firebase_app import firebase_app  # inicializa Firebase Admin
 
 app = FastAPI()
 
-# 🛡️ Habilita CORS para qualquer origem (durante desenvolvimento)
+# Middleware CORS liberando tudo (ideal para dev)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://127.0.0.1:5500"],  # Em produção, substitua por seu domínio (ex: ["https://seusite.com"])
+    allow_origins=["*"],  # restrinja para seu domínio em produção
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Tratamento explícito para requisições OPTIONS (preflight)
+@app.options("/{rest_of_path:path}")
+async def preflight_handler(rest_of_path: str):
+    return JSONResponse(status_code=200, headers={
+        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Methods": "GET,POST,PUT,DELETE,OPTIONS",
+        "Access-Control-Allow-Headers": "*",
+        "Access-Control-Allow-Credentials": "true"
+    })
+
+def get_user_id_from_token(request: Request) -> str:
+    auth_header = request.headers.get("Authorization")
+    if not auth_header or not auth_header.startswith("Bearer "):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token ausente ou inválido")
+    id_token = auth_header.split(" ")[1]
+    try:
+        decoded_token = auth.verify_id_token(id_token)
+        return decoded_token["uid"]
+    except Exception:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token inválido ou expirado")
 
 @app.get("/")
 def root():
@@ -44,3 +64,4 @@ def verify_totp_route(request: Request, code: str = ""):
     if not verify_totp(secret, code):
         raise HTTPException(status_code=401, detail="Código inválido")
     return {"msg": "MFA verificado com sucesso"}
+
