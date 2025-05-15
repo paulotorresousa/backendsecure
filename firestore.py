@@ -1,3 +1,4 @@
+import firebase_app 
 from firebase_admin import firestore
 
 db = firestore.client()
